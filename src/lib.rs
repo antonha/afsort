@@ -8,7 +8,7 @@ extern crate quickcheck;
 
 
 
-pub mod multikey_quicksort{
+pub mod afsort{
 
     pub fn sort(vec: &mut [String]){
         sort_req(vec, 0);
@@ -68,7 +68,7 @@ pub mod multikey_quicksort{
 #[cfg(test)]
 mod tests {
 
-    use multikey_quicksort;
+    use afsort;
     use quickcheck::QuickCheck;
     use test::Bencher;
     use std::fs::File;
@@ -80,7 +80,7 @@ mod tests {
         fn compare_sort(mut strings: Vec<String>) -> bool {
             let mut copy = strings.clone();
             copy.sort_unstable();
-            multikey_quicksort::sort(&mut strings);
+            afsort::sort(&mut strings);
             strings == copy
         };
         QuickCheck::new()
@@ -106,7 +106,7 @@ mod tests {
     #[bench]
     fn af_sort(b: &mut Bencher) {
         let strings = strings_en();
-        b.iter(|| multikey_quicksort::sort(&mut strings.clone()))
+        b.iter(|| afsort::sort(&mut strings.clone()))
     }
 
 }
