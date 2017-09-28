@@ -30,10 +30,6 @@ pub mod afsort {
                 }
             }
         }
-        //No non-empty value found
-        if min == u16::max_value() {
-            return;
-        }
 
         let num_items = (max - min + 2) as u16;
         let mut counts: Vec<usize> = vec![0usize; num_items as usize];
@@ -66,7 +62,7 @@ pub mod afsort {
                 }
             }
         }
-        for i in 0..num_items - 1 {
+        for i in 1..num_items - 1 {
             sort_req(
                 &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
                 depth + 1,
