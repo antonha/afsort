@@ -92,17 +92,10 @@ mod tests {
 
     #[test]
     fn sorts_same_as_unstable() {
-        QuickCheck::new().tests(1000).quickcheck(
+        QuickCheck::new().tests(100000).quickcheck(
             compare_sort as
                 fn(Vec<String>) -> bool,
         );
-    }
-
-    #[test]
-    fn foobar() {
-        assert!(compare_sort(
-            vec![String::from("\u{40001}"), String::from("\u{80000}")],
-        ))
     }
 
     fn compare_sort(mut strings: Vec<String>) -> bool {
