@@ -141,47 +141,69 @@ mod tests {
         );
     }
 
-
-
     #[bench]
-    fn std_sort(b: &mut Bencher) {
-        let strings = strings_en(&Regex::new(r".*").unwrap());
+    fn sort_1000_en_std(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r".*").unwrap(), 1_000);
         b.iter(|| strings.clone().sort_unstable())
     }
 
     #[bench]
-    fn af_sort(b: &mut Bencher) {
-        let strings = strings_en(&Regex::new(r".*").unwrap());
+    fn sort_1000_en_af(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r".*").unwrap(), 1_000);
         b.iter(|| afsort::sort(&mut strings.clone()))
     }
 
     #[bench]
-    fn std_sort_sorted(b: &mut Bencher) {
-        let mut strings = strings_en(&Regex::new(r".*").unwrap());
+    fn sort_10000_en_std(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r".*").unwrap(), 10_000);
+        b.iter(|| strings.clone().sort_unstable())
+    }
+
+    #[bench]
+    fn sort_10000_en_af(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r".*").unwrap(), 10_000);
+        b.iter(|| afsort::sort(&mut strings.clone()))
+    }
+
+    #[bench]
+    fn sort_100000_en_std(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r".*").unwrap(), 100_000);
+        b.iter(|| strings.clone().sort_unstable())
+    }
+
+    #[bench]
+    fn sort_100000_en_af(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r".*").unwrap(), 100_000);
+        b.iter(|| afsort::sort(&mut strings.clone()))
+    }
+
+    #[bench]
+    fn sort_10000_en_sorted_std(b: &mut Bencher) {
+        let mut strings = strings_en(&Regex::new(r".*").unwrap(), 10_000);
         strings.sort_unstable();
         b.iter(|| strings.clone().sort_unstable())
     }
 
     #[bench]
-    fn af_sort_sorted(b: &mut Bencher) {
-        let mut strings = strings_en(&Regex::new(r".*").unwrap());
+    fn sort_10000_en_sorted_af(b: &mut Bencher) {
+        let mut strings = strings_en(&Regex::new(r".*").unwrap(), 10_000);
         strings.sort_unstable();
         b.iter(|| afsort::sort(&mut strings.clone()))
     }
 
     #[bench]
-    fn std_sort_only_lower(b: &mut Bencher) {
-        let strings = strings_en(&Regex::new(r"^[a-z]+$").unwrap());
+    fn sort_10000_en_lower_std(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r"^[a-z]+$").unwrap(), 10000);
         b.iter(|| strings.clone().sort_unstable())
     }
 
     #[bench]
-    fn af_sort_only_lower(b: &mut Bencher) {
-        let strings = strings_en(&Regex::new(r"^[a-z]+$").unwrap());
+    fn sort_10000_en_lower_af(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r"^[a-z]+$").unwrap(), 10000);
         b.iter(|| afsort::sort(&mut strings.clone()))
     }
 
-    fn strings_en(re: &Regex) -> Vec<String> {
+    fn strings_en(re: &Regex, n: usize) -> Vec<String> {
         let d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let f = File::open(d.join("test_resources/american-english.txt")).unwrap();
         let b = BufReader::new(f);
@@ -191,7 +213,7 @@ mod tests {
             .collect::<Vec<String>>();
         let mut rng = rand::thread_rng();
         rng.shuffle(&mut strings);
-        strings.into_iter().take(10000).collect::<Vec<String>>()
+        strings.into_iter().take(n).collect::<Vec<String>>()
     }
 
 
