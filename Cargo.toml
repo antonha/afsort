@@ -7,3 +7,4 @@ authors = ["Anton Hägerstrand <anton.hagerstrand@gmail.com>"]
 [dev-dependencies]
 quickcheck = "0.3"
 rand = "0.3"
+regex = "0.2"

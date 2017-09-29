@@ -5,6 +5,8 @@ extern crate test;
 extern crate rand;
 #[cfg(test)]
 extern crate quickcheck;
+#[cfg(test)]
+extern crate regex;
 
 pub mod afsort {
 
@@ -107,6 +109,8 @@ mod tests {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
     use rand::{self, Rng};
+    use regex::Regex;
+    use std::path::PathBuf;
 
     #[test]
     fn sorts_strings_same_as_unstable() {
@@ -141,20 +145,47 @@ mod tests {
 
     #[bench]
     fn std_sort(b: &mut Bencher) {
-        let strings = strings_en();
+        let strings = strings_en(&Regex::new(r".*").unwrap());
         b.iter(|| strings.clone().sort_unstable())
     }
 
     #[bench]
     fn af_sort(b: &mut Bencher) {
-        let strings = strings_en();
+        let strings = strings_en(&Regex::new(r".*").unwrap());
+        b.iter(|| afsort::sort(&mut strings.clone()))
+    }
+    
+    #[bench]
+    fn std_sort_sorted(b: &mut Bencher) {
+        let mut strings = strings_en(&Regex::new(r".*").unwrap());
+        strings.sort_unstable();
+        b.iter(|| strings.clone().sort_unstable())
+    }
+
+    #[bench]
+    fn af_sort_sorted(b: &mut Bencher) {
+        let mut strings = strings_en(&Regex::new(r".*").unwrap());
+        strings.sort_unstable();
+        b.iter(|| afsort::sort(&mut strings.clone()))
+    }
+    
+    #[bench]
+    fn std_sort_only_lower(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r"^[a-z]+$").unwrap());
+        b.iter(|| strings.clone().sort_unstable())
+    }
+
+    #[bench]
+    fn af_sort_only_lower(b: &mut Bencher) {
+        let strings = strings_en(&Regex::new(r"^[a-z]+$").unwrap());
         b.iter(|| afsort::sort(&mut strings.clone()))
     }
 
-    fn strings_en() -> Vec<String> {
-        let f = File::open("/usr/share/dict/american-english").unwrap();
+    fn strings_en(re: &Regex) -> Vec<String> {
+        let d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let f = File::open(d.join("test_resources/american-english.txt")).unwrap();
         let b = BufReader::new(f);
-        let mut strings = b.lines().map(|l| l.unwrap()).collect::<Vec<String>>();
+        let mut strings = b.lines().map(|l| l.unwrap()).filter(|l|re.is_match(l)).collect::<Vec<String>>();
         let mut rng = rand::thread_rng();
         rng.shuffle(&mut strings);
         strings.into_iter().take(10000).collect::<Vec<String>>()
