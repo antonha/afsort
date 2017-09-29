@@ -1,6 +1,8 @@
 
 # American Flag sort for rust
 
+[![Linux build status](https://api.travis-ci.org/antonha/afsort.png)](https://travis-ci.org/antonha/afsort)
+
 The afsort crate implements a sorting implementation based on
 [American Flag sort](https://en.wikipedia.org/wiki/American_flag_sort). The implementation is
 currently limited to sort byte slices, e.g. Strings. The main motivation is to sort strings of
