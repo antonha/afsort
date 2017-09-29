@@ -44,9 +44,8 @@ assert_eq!(strings, vec![("a", 1), ("b", 2)]);
 # Motivation
 
 Essentially, I noticed that sorting of strings took a long time when using the
-[fst](https://github.com/BurntSushi/fst) crate, since it requires the input to be ordered. I
-found no implementation of American Flag (or similar algorithms) for Rust. Since sorting strings
-is a general problem, this is now a crate.
+[fst](https://github.com/BurntSushi/fst) crate, since it requires the input to be ordered. 
+Since sorting strings is a general problem, this is now a crate.
 
 # Performance
 
