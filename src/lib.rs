@@ -27,7 +27,7 @@ You can now use afsort to e.g. sort arrays of strings or string slices.
 
 ```rust
 use afsort;
-let mut strings = vec!["red", "green", "blue"];
+let mut strings = vec!("red", "green", "blue");
 afsort::sort_unstable(strings);
 assert_eq!(strings, vec!["blue", "green", "red"]);
 ```
@@ -36,7 +36,7 @@ You can also sort by an extractor function, e.g.:
 
 ```rust
 use afsort;
-let mut tuples = vec![("b", 2), ("a", 1)];
+let mut tuples = vec![("b", 2), ("a", 1)]
 afsort::sort_unstable_by(&mut tuples, |t| t.0.as_bytes());
 assert_eq!(strings, vec![("a", 1), ("b", 2)]);
 ```
@@ -44,7 +44,7 @@ assert_eq!(strings, vec![("a", 1), ("b", 2)]);
 # Motivation
 
 Essentially, I noticed that sorting of strings took a long time when using the
-[fst](https://github.com/BurntSushi/fst) crate, since it requires the input to be ordered.
+[fst](https://github.com/BurntSushi/fst) crate, since it requires the input to be ordered. 
 Since sorting strings is a general problem, this is now a crate.
 
 # Performance
@@ -102,9 +102,11 @@ sorts in the same way as the standard library's sort_unstable methods.
 
 */
 
-#![cfg_attr(feature = "unstable", feature(test))]
-
+#![feature(test)]
 #[cfg(test)]
+extern crate test;
+#[cfg(test)]
+extern crate rand;
 #[cfg(test)]
 extern crate quickcheck;
 #[cfg(test)]
@@ -140,7 +142,7 @@ pub mod afsort {
 
     /// Main sort method.
     ///
-    /// #Example
+    /// #Example 
     ///
     /// ```rust
     /// let mut strings = vec!["c", "a", "b"];
@@ -248,13 +250,16 @@ pub mod afsort {
 
 #[cfg(test)]
 mod tests {
-    extern crate quickcheck;
 
     use afsort;
     use afsort::AFSortable;
     use quickcheck::QuickCheck;
-
-
+    use test::Bencher;
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
+    use rand::{self, Rng};
+    use regex::Regex;
+    use std::path::PathBuf;
 
     #[test]
     fn sorts_strings_same_as_unstable() {
@@ -285,21 +290,6 @@ mod tests {
                    -> bool,
         );
     }
-
-}
-
-#[cfg(all(feature = "unstable", test))]
-mod bench {
-    extern crate rand;
-    extern crate test;
-    extern crate regex;
-    use test::Bencher;
-    use std::fs::File;
-    use std::io::{BufRead, BufReader};
-    use rand::{self, Rng};
-    use regex::Regex;
-    use std::path::PathBuf;
-    use afsort::AFSortable;
 
     #[bench]
     fn sort_1000_en_std(b: &mut Bencher) {
