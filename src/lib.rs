@@ -154,7 +154,7 @@ mod tests {
         let strings = strings_en(&Regex::new(r".*").unwrap());
         b.iter(|| afsort::sort(&mut strings.clone()))
     }
-    
+
     #[bench]
     fn std_sort_sorted(b: &mut Bencher) {
         let mut strings = strings_en(&Regex::new(r".*").unwrap());
@@ -168,7 +168,7 @@ mod tests {
         strings.sort_unstable();
         b.iter(|| afsort::sort(&mut strings.clone()))
     }
-    
+
     #[bench]
     fn std_sort_only_lower(b: &mut Bencher) {
         let strings = strings_en(&Regex::new(r"^[a-z]+$").unwrap());
@@ -185,7 +185,10 @@ mod tests {
         let d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let f = File::open(d.join("test_resources/american-english.txt")).unwrap();
         let b = BufReader::new(f);
-        let mut strings = b.lines().map(|l| l.unwrap()).filter(|l|re.is_match(l)).collect::<Vec<String>>();
+        let mut strings = b.lines()
+            .map(|l| l.unwrap())
+            .filter(|l| re.is_match(l))
+            .collect::<Vec<String>>();
         let mut rng = rand::thread_rng();
         rng.shuffle(&mut strings);
         strings.into_iter().take(10000).collect::<Vec<String>>()
