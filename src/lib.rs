@@ -10,14 +10,28 @@ extern crate regex;
 
 pub mod afsort {
 
-    pub fn sort<'a, T>(vec: &'a mut [T])
+    pub trait AFSortable {
+        fn af_sort_unstable(&mut self);
+    }
+
+    impl<T> AFSortable for [T]
     where
         T: AsRef<[u8]>,
     {
-        sort_by(vec, (|s| s.as_ref()));
+        fn af_sort_unstable(&mut self) {
+            sort_unstable(self);
+        }
     }
 
-    pub fn sort_by<T, F>(vec: &mut [T], to_slice: F)
+
+    pub fn sort_unstable<'a, T>(vec: &'a mut [T])
+    where
+        T: AsRef<[u8]>,
+    {
+        sort_unstable_by(vec, (|s| s.as_ref()));
+    }
+
+    pub fn sort_unstable_by<T, F>(vec: &mut [T], to_slice: F)
     where
         F: Fn(&T) -> &[u8],
     {
@@ -104,6 +118,7 @@ pub mod afsort {
 mod tests {
 
     use afsort;
+    use afsort::AFSortable;
     use quickcheck::QuickCheck;
     use test::Bencher;
     use std::fs::File;
@@ -117,7 +132,7 @@ mod tests {
         fn compare_sort(mut strings: Vec<String>) -> bool {
             let mut copy = strings.clone();
             copy.sort_unstable();
-            afsort::sort(&mut strings);
+            strings.af_sort_unstable();
             strings == copy
         }
         QuickCheck::new().tests(1000).quickcheck(
@@ -131,7 +146,7 @@ mod tests {
         fn compare_sort(mut tuples: Vec<(String, u8)>) -> bool {
             let mut copy = tuples.clone();
             copy.sort_unstable_by(|t1, t2| t1.0.cmp(&t2.0));
-            afsort::sort_by(&mut tuples, |t| t.0.as_bytes());
+            afsort::sort_unstable_by(&mut tuples, |t| t.0.as_bytes());
             tuples.into_iter().map(|t| t.0).collect::<Vec<String>>() ==
                 copy.into_iter().map(|t| t.0).collect::<Vec<String>>()
         }
@@ -150,7 +165,7 @@ mod tests {
     #[bench]
     fn sort_1000_en_af(b: &mut Bencher) {
         let strings = strings_en(&Regex::new(r".*").unwrap(), 1_000);
-        b.iter(|| afsort::sort(&mut strings.clone()))
+        b.iter(|| strings.clone().af_sort_unstable())
     }
 
     #[bench]
@@ -162,7 +177,7 @@ mod tests {
     #[bench]
     fn sort_10000_en_af(b: &mut Bencher) {
         let strings = strings_en(&Regex::new(r".*").unwrap(), 10_000);
-        b.iter(|| afsort::sort(&mut strings.clone()))
+        b.iter(|| strings.clone().af_sort_unstable())
     }
 
     #[bench]
@@ -174,7 +189,7 @@ mod tests {
     #[bench]
     fn sort_100000_en_af(b: &mut Bencher) {
         let strings = strings_en(&Regex::new(r".*").unwrap(), 100_000);
-        b.iter(|| afsort::sort(&mut strings.clone()))
+        b.iter(|| strings.clone().af_sort_unstable())
     }
 
     #[bench]
@@ -188,7 +203,7 @@ mod tests {
     fn sort_10000_en_sorted_af(b: &mut Bencher) {
         let mut strings = strings_en(&Regex::new(r".*").unwrap(), 10_000);
         strings.sort_unstable();
-        b.iter(|| afsort::sort(&mut strings.clone()))
+        b.iter(|| strings.clone().af_sort_unstable())
     }
 
     #[bench]
@@ -200,7 +215,7 @@ mod tests {
     #[bench]
     fn sort_10000_en_lower_af(b: &mut Bencher) {
         let strings = strings_en(&Regex::new(r"^[a-z]+$").unwrap(), 10000);
-        b.iter(|| afsort::sort(&mut strings.clone()))
+        b.iter(|| strings.clone().af_sort_unstable())
     }
 
     fn strings_en(re: &Regex, n: usize) -> Vec<String> {
