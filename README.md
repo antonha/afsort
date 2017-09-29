@@ -3,6 +3,8 @@
 
 [![Linux build status](https://api.travis-ci.org/antonha/afsort.png)](https://travis-ci.org/antonha/afsort)
 
+Currently only building on nightly
+
 The afsort crate implements a sorting implementation based on
 [American Flag sort](https://en.wikipedia.org/wiki/American_flag_sort). The implementation is
 currently limited to sort byte slices, e.g. Strings. The main motivation is to sort strings of
