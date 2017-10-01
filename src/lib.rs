@@ -28,7 +28,7 @@ You can now use afsort to e.g. sort arrays of strings or string slices.
 ```rust
 use afsort;
 let mut strings = vec!("red", "green", "blue");
-afsort::sort_unstable(strings);
+afsort::sort_unstable(&mut strings);
 assert_eq!(strings, vec!["blue", "green", "red"]);
 ```
 
@@ -36,23 +36,22 @@ You can also sort by an extractor function, e.g.:
 
 ```rust
 use afsort;
-let mut tuples = vec![("b", 2), ("a", 1)]
+let mut tuples = vec![("b", 2), ("a", 1)];
 afsort::sort_unstable_by(&mut tuples, |t| t.0.as_bytes());
-assert_eq!(strings, vec![("a", 1), ("b", 2)]);
+assert_eq!(tuples, vec![("a", 1), ("b", 2)]);
 ```
 
 # Motivation
 
 Essentially, I noticed that sorting of strings took a long time when using the
-[fst](https://github.com/BurntSushi/fst) crate, since it requires the input to be ordered. 
+[fst](https://github.com/BurntSushi/fst) crate, since it requires the input to be ordered.
 Since sorting strings is a general problem, this is now a crate.
 
 # Performance
 
 As mentioned, this implementation seems to be about 40% faster than the sort in the standard
-library, when sorting strings of random English words. That radix-style sorting algorithms can
-be faster than quicksort is not anything new. The implementation is fairly naive, so I would
-not be surprised if it could be improved further.
+library, when sorting strings of random English words.  The implementation is fairly naive,
+so I would not be surprised if it could be improved further.
 
 You can run the benchmark tests using `cargo bench`, like this:
 
@@ -113,146 +112,144 @@ extern crate quickcheck;
 extern crate regex;
 
 
-/// Base module for the crate. See the crate documentation for more information.
-pub mod afsort {
+/// Enhances slices of e.g. Strings to have a `af_sort_unstable` method, as a more idiomatic
+/// way to call sort.
+///
+/// #Example
+///
+/// ```rust
+/// use afsort::AFSortable;
+///
+/// let mut strings = vec!["c", "a", "b"];
+/// strings.af_sort_unstable();
+/// assert_eq!(strings, vec!["a", "b", "c"]);
+/// ```
 
-    /// Enhances slices of e.g. Strings to have a `af_sort_unstable` method, as a more idiomatic
-    /// way to call sort.
-    ///
-    /// #Example
-    ///
-    /// ```rust
-    /// let mut strings = vec!["c", "a", "b"];
-    /// strings.af_sort_unstable();
-    /// assert_eq!(strings, vec!["a", "b", "c"];
-    /// ```
-    pub trait AFSortable {
-        fn af_sort_unstable(&mut self);
-    }
+pub trait AFSortable {
+    fn af_sort_unstable(&mut self);
+}
 
-    impl<T> AFSortable for [T]
-    where
-        T: AsRef<[u8]>,
-    {
-        fn af_sort_unstable(&mut self) {
-            sort_unstable(self);
-        }
-    }
-
-
-    /// Main sort method.
-    ///
-    /// #Example 
-    ///
-    /// ```rust
-    /// let mut strings = vec!["c", "a", "b"];
-    /// strings.af_sort_unstable();
-    /// assert_eq!(strings, vec!["a", "b", "c"];
-    /// ```
-    pub fn sort_unstable<'a, T>(vec: &'a mut [T])
-    where
-        T: AsRef<[u8]>,
-    {
-        sort_unstable_by(vec, (|s| s.as_ref()));
-    }
-
-    /// Sort method which accepts function to convert elements to &[u8].
-    ///
-    /// #Example
-    ///
-    /// ```rust
-    /// let mut tuples = vec![("b", 2), ("a", 1)]
-    ///afsort::sort_unstable_by(&mut tuples, |t| t.0.as_bytes());
-    ///assert_eq!(strings, vec![("a", 1), ("b", 2)]);
-    /// ```
-    pub fn sort_unstable_by<T, F>(vec: &mut [T], to_slice: F)
-    where
-        F: Fn(&T) -> &[u8],
-    {
-        sort_req(vec, &to_slice, 0);
-    }
-
-    fn sort_req<T, F>(vec: &mut [T], to_slice: &F, depth: usize)
-    where
-        F: Fn(&T) -> &[u8],
-    {
-        if vec.len() <= 32 {
-            vec.sort_unstable_by(|e1, e2| to_slice(e1).cmp(to_slice(e2)));
-            return;
-        }
-        let mut min = u16::max_value();
-        let mut max = 0u16;
-        for elem in vec.iter() {
-            let val = to_slice(elem);
-            if val.len() > depth {
-                let radix_val = val[depth] as u16;
-                if radix_val < min {
-                    min = radix_val;
-                }
-                if radix_val > max {
-                    max = radix_val;
-                }
-            }
-        }
-        if min == u16::max_value() {
-            return;
-        }
-
-        let num_items = (max - min + 2) as usize;
-        let mut counts: Vec<usize> = vec![0usize; num_items as usize];
-
-        for elem in vec.iter() {
-            let radix_val = radix_for_str(to_slice(elem), depth, min);
-            counts[radix_val as usize] += 1;
-        }
-
-        let mut sum = 0usize;
-        let mut offsets: Vec<usize> = vec![0usize; num_items as usize];
-        for i in 0..num_items {
-            offsets[i as usize] = sum;
-            sum += counts[i as usize];
-        }
-        let mut next_free = offsets.clone();
-
-        let mut block = 0usize;
-        let mut i = 0usize;
-        while block < num_items - 1 {
-            if i >= offsets[block as usize + 1] as usize {
-                block += 1;
-            } else {
-                let radix_val = radix_for_str(to_slice(&vec[i]), depth, min);
-                if radix_val == block as u16 {
-                    i += 1;
-                } else {
-                    vec.swap(i as usize, next_free[radix_val as usize] as usize);
-                    next_free[radix_val as usize] += 1;
-                }
-            }
-        }
-        for i in 0..num_items - 1 {
-            sort_req(
-                &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
-                to_slice,
-                depth + 1,
-            );
-        }
-        sort_req(&mut vec[offsets[num_items - 1]..], to_slice, depth + 1);
-    }
-
-    fn radix_for_str(s: &[u8], d: usize, base: u16) -> u16 {
-        if s.len() > d {
-            s[d] as u16 + 1 - base
-        } else {
-            0
-        }
+impl<T> AFSortable for [T]
+where
+    T: AsRef<[u8]>,
+{
+    fn af_sort_unstable(&mut self) {
+        sort_unstable(self);
     }
 }
 
+
+/// Main sort method.
+///
+/// #Example
+///
+/// ```rust
+/// let mut strings = vec!["c", "a", "b"];
+/// afsort::sort_unstable(&mut strings);
+/// assert_eq!(strings, vec!["a", "b", "c"]);
+/// ```
+pub fn sort_unstable<'a, T>(vec: &'a mut [T])
+where
+    T: AsRef<[u8]>,
+{
+    sort_unstable_by(vec, (|s| s.as_ref()));
+}
+
+/// Sort method which accepts function to convert elements to &[u8].
+///
+/// #Example
+///
+/// ```rust
+/// let mut tuples = vec![("b", 2), ("a", 1)];
+///afsort::sort_unstable_by(&mut tuples, |ref t| t.0.as_bytes());
+///assert_eq!(tuples, vec![("a", 1), ("b", 2)]);
+/// ```
+pub fn sort_unstable_by<T, F>(vec: &mut [T], to_slice: F)
+where
+    F: Fn(&T) -> &[u8],
+{
+    sort_req(vec, &to_slice, 0);
+}
+
+fn sort_req<T, F>(vec: &mut [T], to_slice: &F, depth: usize)
+where
+    F: Fn(&T) -> &[u8],
+{
+    if vec.len() <= 32 {
+        vec.sort_unstable_by(|e1, e2| to_slice(e1).cmp(to_slice(e2)));
+        return;
+    }
+    let mut min = u16::max_value();
+    let mut max = 0u16;
+    for elem in vec.iter() {
+        let val = to_slice(elem);
+        if val.len() > depth {
+            let radix_val = val[depth] as u16;
+            if radix_val < min {
+                min = radix_val;
+            }
+            if radix_val > max {
+                max = radix_val;
+            }
+        }
+    }
+    if min == u16::max_value() {
+        return;
+    }
+
+    let num_items = (max - min + 2) as usize;
+    let mut counts: Vec<usize> = vec![0usize; num_items as usize];
+
+    for elem in vec.iter() {
+        let radix_val = radix_for_str(to_slice(elem), depth, min);
+        counts[radix_val as usize] += 1;
+    }
+
+    let mut sum = 0usize;
+    let mut offsets: Vec<usize> = vec![0usize; num_items as usize];
+    for i in 0..num_items {
+        offsets[i as usize] = sum;
+        sum += counts[i as usize];
+    }
+    let mut next_free = offsets.clone();
+
+    let mut block = 0usize;
+    let mut i = 0usize;
+    while block < num_items - 1 {
+        if i >= offsets[block as usize + 1] as usize {
+            block += 1;
+        } else {
+            let radix_val = radix_for_str(to_slice(&vec[i]), depth, min);
+            if radix_val == block as u16 {
+                i += 1;
+            } else {
+                vec.swap(i as usize, next_free[radix_val as usize] as usize);
+                next_free[radix_val as usize] += 1;
+            }
+        }
+    }
+    for i in 0..num_items - 1 {
+        sort_req(
+            &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
+            to_slice,
+            depth + 1,
+        );
+    }
+    sort_req(&mut vec[offsets[num_items - 1]..], to_slice, depth + 1);
+}
+
+fn radix_for_str(s: &[u8], d: usize, base: u16) -> u16 {
+    if s.len() > d {
+        s[d] as u16 + 1 - base
+    } else {
+        0
+    }
+}
+//}
+
 #[cfg(test)]
 mod tests {
-
-    use afsort;
-    use afsort::AFSortable;
+    use super::AFSortable;
     use quickcheck::QuickCheck;
     use test::Bencher;
     use std::fs::File;
@@ -280,7 +277,7 @@ mod tests {
         fn compare_sort(mut tuples: Vec<(String, u8)>) -> bool {
             let mut copy = tuples.clone();
             copy.sort_unstable_by(|t1, t2| t1.0.cmp(&t2.0));
-            afsort::sort_unstable_by(&mut tuples, |t| t.0.as_bytes());
+            super::sort_unstable_by(&mut tuples, |t| t.0.as_bytes());
             tuples.into_iter().map(|t| t.0).collect::<Vec<String>>() ==
                 copy.into_iter().map(|t| t.0).collect::<Vec<String>>()
         }
@@ -365,6 +362,5 @@ mod tests {
         rng.shuffle(&mut strings);
         strings.into_iter().take(n).collect::<Vec<String>>()
     }
-
 
 }
