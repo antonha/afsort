@@ -37,7 +37,7 @@ You can also sort by an extractor function, e.g.:
 ```rust
 use afsort;
 let mut tuples = vec![("b", 2), ("a", 1)];
-afsort::sort_unstable_by(&mut tuples, |t| t.0.as_bytes());
+afsort::sort_unstable_by(&mut tuples, |t: &(&str, _) | t.0.as_bytes());
 assert_eq!(tuples, vec![("a", 1), ("b", 2)]);
 ```
 
@@ -118,6 +118,7 @@ extern crate quickcheck;
 /// ```
 
 pub trait AFSortable {
+    #[inline]
     fn af_sort_unstable(&mut self);
 }
 
@@ -125,6 +126,7 @@ impl<T> AFSortable for [T]
 where
     T: AsRef<[u8]>,
 {
+    #[inline]
     fn af_sort_unstable(&mut self) {
         sort_unstable(self);
     }
@@ -140,6 +142,7 @@ where
 /// afsort::sort_unstable(&mut strings);
 /// assert_eq!(strings, vec!["a", "b", "c"]);
 /// ```
+#[inline]
 pub fn sort_unstable<'a, T>(vec: &'a mut [T])
 where
     T: AsRef<[u8]>,
@@ -153,9 +156,14 @@ where
 ///
 /// ```rust
 /// let mut tuples = vec![("b", 2), ("a", 1)];
-///afsort::sort_unstable_by(&mut tuples, |ref t| t.0.as_bytes());
+///afsort::sort_unstable_by(&mut tuples, |t: &(&str, _) | t.0.as_bytes());
 ///assert_eq!(tuples, vec![("a", 1), ("b", 2)]);
 /// ```
+///
+/// Footnote: The explicit type annotacion in the closure seems to be needed (even though it should
+/// not). See
+/// [this discussion](https://users.rust-lang.org/t/lifetime-issue-with-str-in-closure/13137).
+#[inline]
 pub fn sort_unstable_by<T, F>(vec: &mut [T], to_slice: F)
 where
     F: Fn(&T) -> &[u8],
@@ -173,61 +181,79 @@ where
     }
     let mut min = u16::max_value();
     let mut max = 0u16;
-    for elem in vec.iter() {
-        let val = to_slice(elem);
-        if val.len() > depth {
-            let radix_val = val[depth] as u16;
-            if radix_val < min {
-                min = radix_val;
-            }
-            if radix_val > max {
-                max = radix_val;
+    {
+        //Find min/max to be able to allocate less memory
+        for elem in vec.iter() {
+            let val = to_slice(elem);
+            if val.len() > depth {
+                let radix_val = val[depth] as u16;
+                if radix_val < min {
+                    min = radix_val;
+                }
+                if radix_val > max {
+                    max = radix_val;
+                }
             }
         }
     }
+    //No item had a value for this depth
     if min == u16::max_value() {
         return;
     }
 
+    // +2 instead of +1 for special 0 bucket
     let num_items = (max - min + 2) as usize;
     let mut counts: Vec<usize> = vec![0usize; num_items as usize];
-
-    for elem in vec.iter() {
-        let radix_val = radix_for_str(to_slice(elem), depth, min);
-        counts[radix_val as usize] += 1;
+    {
+        //Count occurences per value. Elements without a value gets
+        //the special value 0, while others get the u8 value +1.
+        for elem in vec.iter() {
+            let radix_val = radix_for_str(to_slice(elem), depth, min);
+            counts[radix_val as usize] += 1;
+        }
     }
 
-    let mut sum = 0usize;
+
     let mut offsets: Vec<usize> = vec![0usize; num_items as usize];
-    for i in 0..num_items {
-        offsets[i as usize] = sum;
-        sum += counts[i as usize];
+    {
+        //Sets the offsets for each count
+        let mut sum = 0usize;
+        for i in 0..counts.len() {
+            offsets[i as usize] = sum;
+            sum += counts[i as usize];
+        }
     }
-    let mut next_free = offsets.clone();
 
-    let mut block = 0usize;
-    let mut i = 0usize;
-    while block < num_items - 1 {
-        if i >= offsets[block as usize + 1] as usize {
-            block += 1;
-        } else {
-            let radix_val = radix_for_str(to_slice(&vec[i]), depth, min);
-            if radix_val == block as u16 {
-                i += 1;
+    {
+        //Swap objects into the correct bucket, based on the offsets
+        let mut next_free = offsets.clone();
+        let mut block = 0usize;
+        let mut i = 0usize;
+        while block < counts.len() - 1 {
+            if i >= offsets[block as usize + 1] as usize {
+                block += 1;
             } else {
-                vec.swap(i as usize, next_free[radix_val as usize] as usize);
-                next_free[radix_val as usize] += 1;
+                let radix_val = radix_for_str(to_slice(&vec[i]), depth, min);
+                if radix_val == block as u16 {
+                    i += 1;
+                } else {
+                    vec.swap(i as usize, next_free[radix_val as usize] as usize);
+                    next_free[radix_val as usize] += 1;
+                }
             }
         }
     }
-    for i in 0..num_items - 1 {
-        sort_req(
-            &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
-            to_slice,
-            depth + 1,
-        );
+    {
+        //Within each bucket, sort recursively
+        for i in 0..offsets.len() - 1 {
+            sort_req(
+                &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
+                to_slice,
+                depth + 1,
+            );
+        }
+        sort_req(&mut vec[offsets[offsets.len() - 1]..], to_slice, depth + 1);
     }
-    sort_req(&mut vec[offsets[num_items - 1]..], to_slice, depth + 1);
 }
 
 fn radix_for_str(s: &[u8], d: usize, base: u16) -> u16 {
@@ -237,7 +263,6 @@ fn radix_for_str(s: &[u8], d: usize, base: u16) -> u16 {
         0
     }
 }
-//}
 
 #[cfg(test)]
 mod tests {
