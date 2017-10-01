@@ -11,7 +11,7 @@ American Flag sort implementation for faster sorting of Strings.
 homepage = "https://github.com/antonha/afsort"
 repository = "https://github.com/antonha/afsort"
 readme = "README.md"
-keywords = ["sort", "strings","American Flag"]
+keywords = ["sort", "strings","american","flag"]
 license = "Unlicense/MIT"
 
 
