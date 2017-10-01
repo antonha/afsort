@@ -1,10 +1,11 @@
 /*!
 
-The afsort crate implements a sorting implementation based on
+The afsort crate implements a sorting algorithm based on
 [American Flag sort](https://en.wikipedia.org/wiki/American_flag_sort). The implementation is
 currently limited to sort byte slices, e.g. Strings. The main motivation is to sort strings of
-text, so most of the benchmarks are based on English text strings. This implementation seems
-to be about 40% faster than `sort_unstable` from the Rust standard library.
+text, so most of the benchmarks are based on English text strings. When sorting English words, 
+this implementation seems to be about 40% faster than `sort_unstable` from the Rust standard 
+library.
 
 For small input, this method falls back to the standard library.
 
@@ -96,8 +97,8 @@ crate does not try to address this issue.
 # Testing
 
 Testing is done using the [quickcheck](https://github.com/BurntSushi/quickcheck) crate. We run
-about 50k different variations of input strings. We make sure that the afsort implementation
-sorts in the same way as the standard library's sort_unstable methods.
+about 50k different variations of input strings. We treat the standard library's sort_unstable
+as the gold standard.
 
 */
 
@@ -164,19 +165,19 @@ where
 /// not). See
 /// [this discussion](https://users.rust-lang.org/t/lifetime-issue-with-str-in-closure/13137).
 #[inline]
-pub fn sort_unstable_by<T, F>(vec: &mut [T], to_slice: F)
+pub fn sort_unstable_by< T, F>(vec: & mut [T], to_slice: F)
 where
-    F: Fn(&T) -> &[u8],
+    F: Fn(& T) -> & [u8],
 {
     sort_req(vec, &to_slice, 0);
 }
 
-fn sort_req<T, F>(vec: &mut [T], to_slice: &F, depth: usize)
+fn sort_req< T, F>(vec: & mut [T], to_slice: &F, depth: usize)
 where
     F: Fn(&T) -> &[u8],
 {
-    if vec.len() <= 32 {
-        vec.sort_unstable_by(|e1, e2| to_slice(e1).cmp(to_slice(e2)));
+    if vec.len() <= 1 {
+        //vec.sort_unstable_by(|e1, e2| to_slice(e1).cmp(to_slice(e2)));
         return;
     }
     let mut min = u16::max_value();
