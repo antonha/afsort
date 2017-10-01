@@ -2,6 +2,7 @@
 # American Flag sort for Rust
 
 [![Linux build status](https://api.travis-ci.org/antonha/afsort.png)](https://travis-ci.org/antonha/afsort)
+[![Crates.io Version badge](https://img.shields.io/crates/v/afsort.svg)](https://crates.io/crates/afsort)
 
 The afsort crate implements a sorting algorithm based on
 [American Flag sort](https://en.wikipedia.org/wiki/American_flag_sort). The implementation is
@@ -12,7 +13,7 @@ library.
 
 For small input, this method falls back to the standard library.
 
-# Installation - TODO: Not on crates yet
+# Installation
 
 Add the depndency to your `Cargo.toml`: 
 
