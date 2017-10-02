@@ -25,6 +25,7 @@ In your crate root:
 ```ignore
 extern crate afsort;
 ```
+**Warning**: Version 0.1.0 is flawed(slow), use 0.1.1.
 
 # Usage
 
