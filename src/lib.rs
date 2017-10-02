@@ -245,8 +245,9 @@ where
         }
     }
     {
-        //Within each bucket, sort recursively
-        for i in 0..offsets.len() - 1 {
+        //Within each bucket, sort recursively. We can skip the first, since all elements 
+        //in it have no radix at this depth, and thus are equal.
+        for i in 1..offsets.len() - 1 {
             sort_req(
                 &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
                 to_slice,
