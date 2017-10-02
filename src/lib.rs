@@ -176,8 +176,8 @@ fn sort_req< T, F>(vec: & mut [T], to_slice: &F, depth: usize)
 where
     F: Fn(&T) -> &[u8],
 {
-    if vec.len() <= 1 {
-        //vec.sort_unstable_by(|e1, e2| to_slice(e1).cmp(to_slice(e2)));
+    if vec.len() <= 32 {
+        vec.sort_unstable_by(|e1, e2| to_slice(e1).cmp(to_slice(e2)));
         return;
     }
     let mut min = u16::max_value();
