@@ -1,6 +1,6 @@
 [package]
 name = "afsort"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Anton Hägerstrand <anton.hagerstrand@gmail.com>"]
 exclude = [
     "test_resources/*"
@@ -12,8 +12,15 @@ homepage = "https://github.com/antonha/afsort"
 repository = "https://github.com/antonha/afsort"
 readme = "README.md"
 keywords = ["sort", "strings","american","flag"]
-license = "Unlicense/MIT"
+license = "MIT"
 
+[profile.test]
+# This is faster, since the tests are CPU-intensive
+opt-level = 3
+
+[profile.bench]
+# Useful for perf
+debug = true
 
 [dev-dependencies]
 quickcheck = "0.3"

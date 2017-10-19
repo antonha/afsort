@@ -3,15 +3,15 @@
 The afsort crate implements a sorting algorithm based on
 [American Flag sort](https://en.wikipedia.org/wiki/American_flag_sort). The implementation is
 currently limited to sort byte slices, e.g. Strings. The main motivation is to sort strings of
-text, so most of the benchmarks are based on English text strings. When sorting English words, 
-this implementation seems to be about 40% faster than `sort_unstable` from the Rust standard 
+text, so most of the benchmarks are based on English text strings. When sorting English words,
+this implementation seems to be about 40% faster than `sort_unstable` from the Rust standard
 library.
 
 For small input, this method falls back to the standard library.
 
 # Installation
 
-Add the depndency to your `Cargo.toml`:
+Add the dependency to your `Cargo.toml`:
 
 ```ignore
 [dependencies]
@@ -22,15 +22,27 @@ In your crate root:
 extern crate afsort;
 ```
 
+**Note on upgrading 0.1.x -> 0.2.x**: The method `afsort::sort_unstable(&mut [AsRef<u8>])` has
+been removed. Use the af_sort_unstable from the `AFSortable` trait instead.
+
 # Usage
 
-You can now use afsort to e.g. sort arrays of strings or string slices.
+You can now afsort to e.g. sort arrays of strings or string slices.
 
 ```rust
-use afsort;
+use afsort::AFSortable;
 let mut strings = vec!("red", "green", "blue");
-afsort::sort_unstable(&mut strings);
+strings.af_sort_unstable();
 assert_eq!(strings, vec!["blue", "green", "red"]);
+```
+
+It also works on u8, u16, u32 and u64:
+
+```rust
+use afsort::AFSortable;
+let mut strings = vec!(1u32, 2u32, 7u32);
+strings.af_sort_unstable();
+assert_eq!(strings, vec![1u32, 2u32, 7u32]);
 ```
 
 You can also sort by an extractor function, e.g.:
@@ -38,9 +50,14 @@ You can also sort by an extractor function, e.g.:
 ```rust
 use afsort;
 let mut tuples = vec![("b", 2), ("a", 1)];
-afsort::sort_unstable_by(&mut tuples, |t: &(&str, _) | t.0.as_bytes());
+afsort::sort_unstable_by(&mut tuples, |t| &t.0);
 assert_eq!(tuples, vec![("a", 1), ("b", 2)]);
 ```
+
+The `af_sort_unstable()` method is implemented for all slices of values that implement the
+`afsort::DigitAt` and the `Ord` traits. The `DigitAt` trait is implemented for `&str`
+, `String`, `[u8]`, `u8`, `u16`, `u32` and `u64`. All of these also implement Ord. You can also
+implement this trait for any other type.
 
 # Motivation
 
@@ -51,41 +68,55 @@ Since sorting strings is a general problem, this is now a crate.
 # Performance
 
 As mentioned, this implementation seems to be about 40% faster than the sort in the standard
-library, when sorting strings of random English words.  The implementation is fairly naive,
-so I would not be surprised if it could be improved further.
+library, when sorting strings of random English words.  It is slower for strings that are
+already sorted. The implementation is fairly naive, so I would not be surprised if it could
+be improved further.
+
+For numbers, it currently seems to be slower than the standard library. I suspect this is due
+to more swaps happening in afsort than in the standard library. I want to fix this.
+
+This will be heavily affected by the distribution of values in the input though. As always with
+performance: _your milage may vary_. Profile your usage.
 
 You can run the benchmark tests using `cargo bench` (currently requires nightly rust), like this:
 
 ```ignore
 % cargo bench
-   Compiling afsort v0.1.0 (file:///home/anton/dev/off/afsort)
-    Finished release [optimized] target(s) in 5.66 secs
-     Running target/release/deps/afsort-ca28db3ba0643253
-
-running 12 tests
+    Finished release [optimized] target(s) in 0.0 secs
+     Running target/release/deps/afsort-2f0d4e495216be99
+running 10 tests
+test tests::correct_radix_for_u16 ... ignored
+test tests::correct_radix_for_u32 ... ignored
+test tests::correct_radix_for_u64 ... ignored
+test tests::correct_radix_for_u8 ... ignored
 test tests::sorts_strings_same_as_unstable ... ignored
 test tests::sorts_tuples_same_as_unstable ... ignored
-test tests::sort_100000_en_af        ... bench:  20,402,968 ns/iter (+/- 1,512,907)
-test tests::sort_100000_en_std       ... bench:  30,132,067 ns/iter (+/- 1,698,223)
-test tests::sort_10000_en_af         ... bench:   1,377,303 ns/iter (+/- 114,481)
-test tests::sort_10000_en_lower_af   ... bench:   1,371,022 ns/iter (+/- 95,391)
-test tests::sort_10000_en_lower_std  ... bench:   2,227,486 ns/iter (+/- 127,281)
-test tests::sort_10000_en_sorted_af  ... bench:     878,665 ns/iter (+/- 545,256)
-test tests::sort_10000_en_sorted_std ... bench:     618,329 ns/iter (+/- 536,338)
-test tests::sort_10000_en_std        ... bench:   2,221,089 ns/iter (+/- 157,461)
-test tests::sort_1000_en_af          ... bench:     101,625 ns/iter (+/- 6,946)
-test tests::sort_1000_en_std         ... bench:     171,655 ns/iter (+/- 9,844)
-
-test result: ok. 0 passed; 0 failed; 2 ignored; 10 measured; 0 filtered out
-
-
+test tests::sorts_u16_same_as_unstable ... ignored
+test tests::sorts_u32_same_as_unstable ... ignored
+test tests::sorts_u64_same_as_unstable ... ignored
+test tests::sorts_u8_same_as_unstable ... ignored
+test result: ok. 0 passed; 0 failed; 10 ignored; 0 measured; 0 filtered out
+     Running target/release/deps/bench-42a0c77149fb906a
+running 16 tests
+test sort_en_strings_lower_10_000_af   ... bench:   1,881,300 ns/iter (+/- 618,858)
+test sort_en_strings_lower_10_000_std  ... bench:   2,594,388 ns/iter (+/- 767,774)
+test sort_en_strings_rand_100_000_af   ... bench:  23,101,465 ns/iter (+/- 12,052,025)
+test sort_en_strings_rand_100_000_std  ... bench:  31,536,516 ns/iter (+/- 12,910,887)
+test sort_en_strings_rand_10_000_af    ... bench:   1,588,372 ns/iter (+/- 568,509)
+test sort_en_strings_rand_10_000_std   ... bench:   2,193,132 ns/iter (+/- 648,297)
+test sort_en_strings_sorted_10_000_af  ... bench:     806,419 ns/iter (+/- 128,186)
+test sort_en_strings_sorted_10_000_std ... bench:     589,161 ns/iter (+/- 340,707)
+test sort_u16_1_000_000_af             ... bench:  19,442,855 ns/iter (+/- 1,642,992)
+test sort_u16_1_000_000_std            ... bench:  21,401,736 ns/iter (+/- 3,607,120)
+test sort_u32_1_000_000_af             ... bench:  31,682,863 ns/iter (+/- 5,254,810)
+test sort_u32_1_000_000_std            ... bench:  30,809,651 ns/iter (+/- 1,623,271)
+test sort_u64_1_000_000_af             ... bench:  39,730,940 ns/iter (+/- 6,139,556)
+test sort_u64_1_000_000_std            ... bench:  32,477,660 ns/iter (+/- 1,733,969)
+test sort_u8_1_000_af                  ... bench:      11,330 ns/iter (+/- 702)
+test sort_u8_1_000_std                 ... bench:       8,764 ns/iter (+/- 163)
+test result: ok. 0 passed; 0 failed; 0 ignored; 16 measured; 0 filtered out
 ```
 # Limitations
-
-Currently, this crate only supports sorting elements of `AsRef<[u8]>`. I think that this is a
-good first step, since it supports sorting of Strings. There is however no reason why American
-Flag sorting should be limited to this data type. Any kind of element that can deliver a radix
-to a certain digit/depth can be sorted using this technique.
 
 The American Flag algorithm is unstable, in the same way that sort_unstable in the standard
 library. That is, equal elements might be re-ordered.
@@ -97,16 +128,116 @@ crate does not try to address this issue.
 # Testing
 
 Testing is done using the [quickcheck](https://github.com/BurntSushi/quickcheck) crate. We run
-about 50k different variations of input strings. We treat the standard library's sort_unstable
-as the gold standard.
+about 50k different variations of input strings & numbers. We treat the standard library's
+sort_unstable as the gold standard. This means that it is very likely that this library is as
+bug-free (at least in a functional sense) as the standard library.
 
 */
 
 #[cfg(test)]
 extern crate quickcheck;
 
-/// Enhances slices of e.g. Strings to have a `af_sort_unstable` method, as a more idiomatic
-/// way to call sort.
+/// Specifies that a type can deliver a radix at a certain digit/depth.
+pub trait DigitAt {
+    /// Extracts a radix value at a certain digit for a type. Should return None if no value exists
+    /// at the digit.
+    ///
+    /// #Example
+    ///
+    /// ```rust
+    /// use afsort::DigitAt;
+    ///
+    /// let num = 0x0502u16;
+    /// assert_eq!(Some(5), num.get_digit_at(0));
+    /// assert_eq!(Some(2), num.get_digit_at(1));
+    /// assert_eq!(None, num.get_digit_at(2));
+    /// ```
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8>;
+}
+
+impl DigitAt for u8 {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        if digit == 0 { Some(*self) } else { None }
+    }
+}
+
+impl DigitAt for u16 {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        match digit {
+            0 => Some(((self & 0xFF00) >> 8) as u8),
+            1 => Some((self & 0xFF) as u8),
+            _ => None,
+        }
+    }
+}
+
+impl DigitAt for u32 {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        match digit {
+            0 => Some(((self & 0xFF000000) >> 24) as u8),
+            1 => Some(((self & 0xFF0000) >> 16) as u8),
+            2 => Some(((self & 0xFF00) >> 8) as u8),
+            3 => Some((*self & 0xFF) as u8),
+            _ => None,
+        }
+    }
+}
+
+impl DigitAt for u64 {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        match digit {
+            0 => Some(((self & 0xFF00000000000000) >> 56) as u8),
+            1 => Some(((self & 0xFF000000000000) >> 48) as u8),
+            2 => Some(((self & 0xFF0000000000) >> 40) as u8),
+            3 => Some(((self & 0xFF00000000) >> 32) as u8),
+            4 => Some(((self & 0xFF000000) >> 24) as u8),
+            5 => Some(((self & 0xFF0000) >> 16) as u8),
+            6 => Some(((self & 0xFF00) >> 8) as u8),
+            7 => Some((self & 0xFF) as u8),
+            _ => None,
+        }
+    }
+}
+
+impl<'a> DigitAt for &'a str {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        if self.len() > digit {
+            Some(self.as_bytes()[digit])
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> DigitAt for String {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        if self.len() > digit {
+            Some(self.as_bytes()[digit])
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> DigitAt for [u8] {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        if self.len() > digit {
+            Some(self[digit])
+        } else {
+            None
+        }
+    }
+}
+
+/// Enhances slices of `DigitAt` implementors to have a `af_sort_unstable` method.
 ///
 /// #Example
 ///
@@ -125,31 +256,19 @@ pub trait AFSortable {
 
 impl<T> AFSortable for [T]
 where
-    T: AsRef<[u8]>,
+    T: DigitAt + Ord,
 {
     #[inline]
     fn af_sort_unstable(&mut self) {
-        sort_unstable(self);
+        sort_unstable_by(self, ident);
     }
 }
 
-
-/// Main sort method.
-///
-/// #Example
-///
-/// ```rust
-/// let mut strings = vec!["c", "a", "b"];
-/// afsort::sort_unstable(&mut strings);
-/// assert_eq!(strings, vec!["a", "b", "c"]);
-/// ```
 #[inline]
-pub fn sort_unstable<'a, T>(vec: &'a mut [T])
-where
-    T: AsRef<[u8]>,
-{
-    sort_unstable_by(vec, (|s| s.as_ref()));
+fn ident<T>(t: &T) -> &T {
+    &t
 }
+
 
 /// Sort method which accepts function to convert elements to &[u8].
 ///
@@ -157,7 +276,7 @@ where
 ///
 /// ```rust
 /// let mut tuples = vec![("b", 2), ("a", 1)];
-///afsort::sort_unstable_by(&mut tuples, |t: &(&str, _) | t.0.as_bytes());
+///afsort::sort_unstable_by(&mut tuples, |t| &t.0);
 ///assert_eq!(tuples, vec![("a", 1), ("b", 2)]);
 /// ```
 ///
@@ -165,19 +284,22 @@ where
 /// not). See
 /// [this discussion](https://users.rust-lang.org/t/lifetime-issue-with-str-in-closure/13137).
 #[inline]
-pub fn sort_unstable_by< T, F>(vec: & mut [T], to_slice: F)
+pub fn sort_unstable_by<T, O, S>(vec: &mut [T], sort_by: S)
 where
-    F: Fn(& T) -> & [u8],
+    O: Ord + DigitAt,
+    S: Fn(&T) -> &O,
 {
-    sort_req(vec, &to_slice, 0);
+    sort_req(vec, &sort_by, 0);
 }
 
-fn sort_req< T, F>(vec: & mut [T], to_slice: &F, depth: usize)
+fn sort_req<T, O, S>(vec: &mut [T], sort_by: &S, depth: usize)
 where
-    F: Fn(&T) -> &[u8],
+    O: Ord + DigitAt,
+    S: Fn(&T) -> &O,
 {
+
     if vec.len() <= 32 {
-        vec.sort_unstable_by(|e1, e2| to_slice(e1).cmp(to_slice(e2)));
+        vec.sort_unstable_by(|e1, e2| sort_by(e1).cmp(sort_by(e2)));
         return;
     }
     let mut min = u16::max_value();
@@ -185,15 +307,17 @@ where
     {
         //Find min/max to be able to allocate less memory
         for elem in vec.iter() {
-            let val = to_slice(elem);
-            if val.len() > depth {
-                let radix_val = val[depth] as u16;
-                if radix_val < min {
-                    min = radix_val;
+            match sort_by(elem).get_digit_at(depth) {
+                Some(v) => {
+                    let radix_val = v as u16;
+                    if radix_val < min {
+                        min = radix_val;
+                    }
+                    if radix_val > max {
+                        max = radix_val;
+                    }
                 }
-                if radix_val > max {
-                    max = radix_val;
-                }
+                None => (),
             }
         }
     }
@@ -209,12 +333,14 @@ where
         //Count occurences per value. Elements without a value gets
         //the special value 0, while others get the u8 value +1.
         for elem in vec.iter() {
-            let radix_val = radix_for_str(to_slice(elem), depth, min);
+            let radix_val = match sort_by(elem).get_digit_at(depth) {
+                Some(r) => r as u16 + 1 - min,
+                None => 0,
+            };
             counts[radix_val as usize] += 1;
         }
     }
-
-
+    
     let mut offsets: Vec<usize> = vec![0usize; num_items as usize];
     {
         //Sets the offsets for each count
@@ -224,7 +350,6 @@ where
             sum += counts[i as usize];
         }
     }
-
     {
         //Swap objects into the correct bucket, based on the offsets
         let mut next_free = offsets.clone();
@@ -234,7 +359,10 @@ where
             if i >= offsets[block as usize + 1] as usize {
                 block += 1;
             } else {
-                let radix_val = radix_for_str(to_slice(&vec[i]), depth, min);
+                let radix_val = match sort_by(&vec[i]).get_digit_at(depth) {
+                    Some(r) => r as u16 + 1 - min,
+                    None => 0,
+                };
                 if radix_val == block as u16 {
                     i += 1;
                 } else {
@@ -245,32 +373,25 @@ where
         }
     }
     {
-        //Within each bucket, sort recursively. We can skip the first, since all elements 
+        //Within each bucket, sort recursively. We can skip the first, since all elements
         //in it have no radix at this depth, and thus are equal.
         for i in 1..offsets.len() - 1 {
             sort_req(
                 &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
-                to_slice,
+                sort_by,
                 depth + 1,
             );
         }
-        sort_req(&mut vec[offsets[offsets.len() - 1]..], to_slice, depth + 1);
+        sort_req(&mut vec[offsets[offsets.len() - 1]..], sort_by, depth + 1);
     }
 }
 
-fn radix_for_str(s: &[u8], d: usize, base: u16) -> u16 {
-    if s.len() > d {
-        s[d] as u16 + 1 - base
-    } else {
-        0
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::AFSortable;
+    use super::DigitAt;
     use quickcheck::QuickCheck;
-
 
     #[test]
     fn sorts_strings_same_as_unstable() {
@@ -287,11 +408,71 @@ mod tests {
     }
 
     #[test]
+    fn sorts_u8_same_as_unstable() {
+        fn compare_sort(mut nums: Vec<u8>) -> bool {
+            let mut copy = nums.clone();
+            copy.sort_unstable();
+            nums.af_sort_unstable();
+            nums == copy
+        }
+        QuickCheck::new().tests(50000).quickcheck(
+            compare_sort as
+                fn(Vec<u8>) -> bool,
+        );
+    }
+
+    #[test]
+    fn sorts_u16_same_as_unstable() {
+        fn compare_sort(mut nums: Vec<u16>) -> bool {
+            let mut copy = nums.clone();
+            copy.sort_unstable();
+            nums.af_sort_unstable();
+            nums == copy
+        }
+        QuickCheck::new()
+            .tests(50000)
+            .quickcheck(
+            compare_sort as
+                fn(Vec<u16>) -> bool,
+        );
+    }
+
+    #[test]
+    fn sorts_u32_same_as_unstable() {
+        fn compare_sort(mut nums: Vec<u32>) -> bool {
+            let mut copy = nums.clone();
+            copy.sort_unstable();
+            nums.af_sort_unstable();
+            nums == copy
+        }
+        QuickCheck::new()
+            .tests(50000).quickcheck(
+            compare_sort as
+                fn(Vec<u32>) -> bool,
+        );
+    }
+
+    #[test]
+    fn sorts_u64_same_as_unstable() {
+        fn compare_sort(mut nums: Vec<u64>) -> bool {
+            let mut copy = nums.clone();
+            copy.sort_unstable();
+            nums.af_sort_unstable();
+            nums == copy
+        }
+        QuickCheck::new().tests(50000)
+            .quickcheck(
+            compare_sort as
+                fn(Vec<u64>) -> bool,
+        );
+    }
+
+    #[test]
     fn sorts_tuples_same_as_unstable() {
         fn compare_sort(mut tuples: Vec<(String, u8)>) -> bool {
             let mut copy = tuples.clone();
             copy.sort_unstable_by(|t1, t2| t1.0.cmp(&t2.0));
-            super::sort_unstable_by(&mut tuples, |t| t.0.as_bytes());
+            super::sort_unstable_by(&mut tuples, |t| &t.0);
             tuples.into_iter().map(|t| t.0).collect::<Vec<String>>() ==
                 copy.into_iter().map(|t| t.0).collect::<Vec<String>>()
         }
@@ -300,5 +481,48 @@ mod tests {
                 fn(Vec<(String, u8)>)
                    -> bool,
         );
+    }
+
+    #[test]
+    fn correct_radix_for_u8(){
+        let num = 0x50u8;
+        assert_eq!(Some(num), num.get_digit_at(0));
+        assert_eq!(None, num.get_digit_at(1));
+        assert_eq!(None, num.get_digit_at(5));
+    }
+    
+    #[test]
+    fn correct_radix_for_u16(){
+        let num = 0x3050u16;
+        assert_eq!(Some(0x30), num.get_digit_at(0));
+        assert_eq!(Some(0x50), num.get_digit_at(1));
+        assert_eq!(None, num.get_digit_at(2));
+        assert_eq!(None, num.get_digit_at(5));
+    }
+    
+    #[test]
+    fn correct_radix_for_u32(){
+        let num = 0x70103050u32;
+        assert_eq!(Some(0x70), num.get_digit_at(0));
+        assert_eq!(Some(0x10), num.get_digit_at(1));
+        assert_eq!(Some(0x30), num.get_digit_at(2));
+        assert_eq!(Some(0x50), num.get_digit_at(3));
+        assert_eq!(None, num.get_digit_at(4));
+        assert_eq!(None, num.get_digit_at(7));
+    }
+    
+    #[test]
+    fn correct_radix_for_u64(){
+        let num = 0x2040608070103050u64;
+        assert_eq!(Some(0x20), num.get_digit_at(0));
+        assert_eq!(Some(0x40), num.get_digit_at(1));
+        assert_eq!(Some(0x60), num.get_digit_at(2));
+        assert_eq!(Some(0x80), num.get_digit_at(3));
+        assert_eq!(Some(0x70), num.get_digit_at(4));
+        assert_eq!(Some(0x10), num.get_digit_at(5));
+        assert_eq!(Some(0x30), num.get_digit_at(6));
+        assert_eq!(Some(0x50), num.get_digit_at(7));
+        assert_eq!(None, num.get_digit_at(8));
+        assert_eq!(None, num.get_digit_at(13));
     }
 }
