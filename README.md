@@ -32,7 +32,7 @@ been removed. Use the af_sort_unstable from the `AFSortable` trait instead.
 
 # Usage
 
-You can now afsort to e.g. sort arrays of strings or string slices.
+You can now use afsort to e.g. sort arrays of strings or string slices.
 
 ```rust
 use afsort::AFSortable;
