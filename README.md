@@ -1,7 +1,7 @@
 
 # American Flag sort for Rust
 
-[![Linux build status](https://api.travis-ci.org/antonha/afsort.png)](https://travis-ci.org/antonha/afsort)
+[![Linux build status](https://travis-ci.org/antonha/afsort.svg?branch=master)](https://travis-ci.org/antonha/afsort)
 [![Crates.io Version badge](https://img.shields.io/crates/v/afsort.svg)](https://crates.io/crates/afsort)
 
 The afsort crate implements a sorting algorithm based on
