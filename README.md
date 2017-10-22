@@ -25,7 +25,7 @@ In your crate root:
 extern crate afsort;
 ```
 
-**Warning**: Version 0.1.0 is flawed(slow), use 0.1.1.
+**Warning**: Version 0.1.0 is flawed(slow), use 0.1.1 or later.
 
 **Note on upgrading 0.1.x -> 0.2.x**: The method `afsort::sort_unstable(&mut [AsRef<u8>])` has
 been removed. Use the af_sort_unstable from the `AFSortable` trait instead.
