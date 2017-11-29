@@ -328,7 +328,7 @@ where
 
     // +2 instead of +1 for special 0 bucket
     let num_items = (max - min + 2) as usize;
-    let mut counts: Vec<usize> = vec![0usize; num_items as usize];
+    let mut counts = vec![0usize; num_items as usize];
     {
         //Count occurences per value. Elements without a value gets
         //the special value 0, while others get the u8 value +1.
@@ -341,48 +341,84 @@ where
         }
     }
     
-    let mut offsets: Vec<usize> = vec![0usize; num_items as usize];
+    #[derive(PartialEq,Eq,Clone)]
+    struct PartitionInfo {
+        //TODO sizes? No need for usize
+        offset: usize,
+        next_offset: usize,
+    }
+
+    let mut infos = vec![
+        PartitionInfo {
+            offset: 0,
+            next_offset: 0,
+        };
+        num_items as usize
+    ];
+    let mut remaining = vec![0u16; num_items as usize];
+    let mut num_partitions = 0usize;
     {
         //Sets the offsets for each count
         let mut sum = 0usize;
         for i in 0..counts.len() {
-            offsets[i as usize] = sum;
-            sum += counts[i as usize];
+            if counts[i] > 0 {
+                infos[i].offset = sum;
+                sum += counts[i];
+                remaining[num_partitions] = i as u16;
+                num_partitions += 1;
+            }
+            infos[i].next_offset = sum;
         }
     }
     {
-        //Swap objects into the correct bucket, based on the offsets
-        let mut next_free = offsets.clone();
-        let mut block = 0usize;
-        let mut i = 0usize;
-        while block < counts.len() - 1 {
-            if i >= offsets[block as usize + 1] as usize {
-                block += 1;
-            } else {
-                let radix_val = match sort_by(&vec[i]).get_digit_at(depth) {
-                    Some(r) => r as u16 + 1 - min,
-                    None => 0,
-                };
-                if radix_val == block as u16 {
-                    i += 1;
-                } else {
-                    vec.swap(i as usize, next_free[radix_val as usize] as usize);
-                    next_free[radix_val as usize] += 1;
+        let mut to_sort = &mut remaining;
+        while to_sort.len() > 1 {
+            let mut ignore = [0;0usize];
+            (to_sort,  ignore) = partition(&mut to_sort, |p| {
+                let begin_offset = infos[*p as usize].offset;
+                let end_offset = infos[*p as usize].next_offset;
+                if begin_offset == end_offset{
+                    return false;
                 }
-            }
+                else{
+                    for i in begin_offset..end_offset {
+                        let radix_val = match sort_by(&vec[i]).get_digit_at(depth) {
+                            Some(r) => r as u16 + 1 - min,
+                            None => 0,
+                        };
+                        infos[radix_val as usize].offset += 1;
+                        vec.swap(i as usize, infos[radix_val as usize].offset);
+                    }
+                    return true;
+                }
+            });
         }
     }
     {
         //Within each bucket, sort recursively. We can skip the first, since all elements
         //in it have no radix at this depth, and thus are equal.
-        for i in 1..offsets.len() - 1 {
+        for i in 1..infos.len() - 1 {
             sort_req(
-                &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
+                &mut vec[infos[i as usize].offset as usize..infos[i as usize + 1].offset as usize],
                 sort_by,
                 depth + 1,
             );
         }
-        sort_req(&mut vec[offsets[offsets.len() - 1]..], sort_by, depth + 1);
+        sort_req(&mut vec[infos[infos.len() - 1].offset..], sort_by, depth + 1);
+    }
+}
+
+#[inline]
+pub fn partition<T, P>(data: &mut [T], predicate: P) -> (&mut [T], &mut [T])
+where P: FnMut(&T) -> bool {
+    let len = data.len();
+    if len == 0 { return (&mut [], &mut []); }
+    let (mut l, mut r) = (0, len - 1);
+    loop {
+        while l < len && predicate(&data[l]) { l += 1; }
+        while r > 0 && !predicate(&data[r]) { r -= 1; }
+        if l >= r { return data.split_at_mut(l); }
+        data.swap(l, r);
     }
 }
 
@@ -429,9 +465,7 @@ mod tests {
             nums.af_sort_unstable();
             nums == copy
         }
-        QuickCheck::new()
-            .tests(50000)
-            .quickcheck(
+        QuickCheck::new().tests(50000).quickcheck(
             compare_sort as
                 fn(Vec<u16>) -> bool,
         );
@@ -445,8 +479,7 @@ mod tests {
             nums.af_sort_unstable();
             nums == copy
         }
-        QuickCheck::new()
-            .tests(50000).quickcheck(
+        QuickCheck::new().tests(50000).quickcheck(
             compare_sort as
                 fn(Vec<u32>) -> bool,
         );
@@ -460,8 +493,7 @@ mod tests {
             nums.af_sort_unstable();
             nums == copy
         }
-        QuickCheck::new().tests(50000)
-            .quickcheck(
+        QuickCheck::new().tests(50000).quickcheck(
             compare_sort as
                 fn(Vec<u64>) -> bool,
         );
@@ -484,24 +516,24 @@ mod tests {
     }
 
     #[test]
-    fn correct_radix_for_u8(){
+    fn correct_radix_for_u8() {
         let num = 0x50u8;
         assert_eq!(Some(num), num.get_digit_at(0));
         assert_eq!(None, num.get_digit_at(1));
         assert_eq!(None, num.get_digit_at(5));
     }
-    
+
     #[test]
-    fn correct_radix_for_u16(){
+    fn correct_radix_for_u16() {
         let num = 0x3050u16;
         assert_eq!(Some(0x30), num.get_digit_at(0));
         assert_eq!(Some(0x50), num.get_digit_at(1));
         assert_eq!(None, num.get_digit_at(2));
         assert_eq!(None, num.get_digit_at(5));
     }
-    
+
     #[test]
-    fn correct_radix_for_u32(){
+    fn correct_radix_for_u32() {
         let num = 0x70103050u32;
         assert_eq!(Some(0x70), num.get_digit_at(0));
         assert_eq!(Some(0x10), num.get_digit_at(1));
@@ -510,9 +542,9 @@ mod tests {
         assert_eq!(None, num.get_digit_at(4));
         assert_eq!(None, num.get_digit_at(7));
     }
-    
+
     #[test]
-    fn correct_radix_for_u64(){
+    fn correct_radix_for_u64() {
         let num = 0x2040608070103050u64;
         assert_eq!(Some(0x20), num.get_digit_at(0));
         assert_eq!(Some(0x40), num.get_digit_at(1));
