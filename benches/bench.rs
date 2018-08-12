@@ -1,18 +1,17 @@
 #![feature(test)]
 
-extern crate test;
+extern crate afsort;
 extern crate rand;
 extern crate regex;
-extern crate afsort;
+extern crate test;
 
-use test::Bencher;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
+use afsort::AFSortable;
 use rand::Rng;
 use regex::Regex;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use afsort::AFSortable;
-
+use test::Bencher;
 
 #[bench]
 fn sort_en_strings_rand_10_000_std(b: &mut Bencher) {
@@ -112,7 +111,6 @@ fn sort_u64_1_000_000_af(b: &mut Bencher) {
     b.iter(|| nums.clone().af_sort_unstable())
 }
 
-
 fn rand_u8(n: usize) -> Vec<u8> {
     let mut rng = rand::thread_rng();
     let mut v = Vec::with_capacity(n);
@@ -153,7 +151,8 @@ fn strings_en(re: &Regex, n: usize) -> Vec<String> {
     let d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let f = File::open(d.join("test_resources/american-english.txt")).unwrap();
     let b = BufReader::new(f);
-    let mut strings = b.lines()
+    let mut strings = b
+        .lines()
         .map(|l| l.unwrap())
         .filter(|l| re.is_match(l))
         .collect::<Vec<String>>();

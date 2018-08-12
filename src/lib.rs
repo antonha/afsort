@@ -137,6 +137,8 @@ bug-free (at least in a functional sense) as the standard library.
 #[cfg(test)]
 extern crate quickcheck;
 
+use std::borrow::Cow;
+
 /// Specifies that a type can deliver a radix at a certain digit/depth.
 pub trait DigitAt {
     /// Extracts a radix value at a certain digit for a type. Should return None if no value exists
@@ -159,7 +161,11 @@ pub trait DigitAt {
 impl DigitAt for u8 {
     #[inline]
     fn get_digit_at(&self, digit: usize) -> Option<u8> {
-        if digit == 0 { Some(*self) } else { None }
+        if digit == 0 {
+            Some(*self)
+        } else {
+            None
+        }
     }
 }
 
@@ -237,6 +243,35 @@ impl<'a> DigitAt for [u8] {
     }
 }
 
+impl<'a> DigitAt for &'a [u8] {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        if self.len() > digit {
+            Some(self[digit])
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> DigitAt for Cow<'a, str> {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        if self.len() > digit {
+            Some(self.as_bytes()[digit])
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> DigitAt for AsRef<DigitAt> {
+    #[inline]
+    fn get_digit_at(&self, digit: usize) -> Option<u8> {
+        self.as_ref().get_digit_at(digit)
+    }
+}
+
 /// Enhances slices of `DigitAt` implementors to have a `af_sort_unstable` method.
 ///
 /// #Example
@@ -269,7 +304,6 @@ fn ident<T>(t: &T) -> &T {
     &t
 }
 
-
 /// Sort method which accepts function to convert elements to &[u8].
 ///
 /// #Example
@@ -297,7 +331,6 @@ where
     O: Ord + DigitAt,
     S: Fn(&T) -> &O,
 {
-
     if vec.len() <= 32 {
         vec.sort_unstable_by(|e1, e2| sort_by(e1).cmp(sort_by(e2)));
         return;
@@ -340,7 +373,7 @@ where
             counts[radix_val as usize] += 1;
         }
     }
-    
+
     let mut offsets: Vec<usize> = vec![0usize; num_items as usize];
     {
         //Sets the offsets for each count
@@ -386,12 +419,12 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::AFSortable;
     use super::DigitAt;
     use quickcheck::QuickCheck;
+    use std::borrow::Cow;
 
     #[test]
     fn sorts_strings_same_as_unstable() {
@@ -401,10 +434,37 @@ mod tests {
             strings.af_sort_unstable();
             strings == copy
         }
-        QuickCheck::new().tests(50000).quickcheck(
-            compare_sort as
-                fn(Vec<String>) -> bool,
-        );
+        QuickCheck::new()
+            .tests(50000)
+            .quickcheck(compare_sort as fn(Vec<String>) -> bool);
+    }
+
+    #[test]
+    fn sorts_cow_str_same_as_unstable() {
+        fn compare_sort(strings: Vec<String>) -> bool {
+            let mut cows: Vec<Cow<str>> = strings.into_iter().map(|s| Cow::Owned(s)).collect();
+            let mut copy = cows.clone();
+            copy.sort_unstable();
+            cows.af_sort_unstable();
+            cows == copy
+        }
+        QuickCheck::new()
+            .tests(50000)
+            .quickcheck(compare_sort as fn(Vec<String>) -> bool);
+    }
+
+    #[test]
+    fn sorts_u8_ref_same_as_unstable() {
+        fn compare_sort(nums: Vec<Vec<u8>>) -> bool {
+            let mut refs: Vec<&[u8]> = nums.iter().map(|i| i.as_slice()).collect();
+            let mut copy = refs.clone();
+            copy.sort_unstable();
+            refs.af_sort_unstable();
+            refs == copy
+        }
+        QuickCheck::new()
+            .tests(50000)
+            .quickcheck(compare_sort as fn(Vec<Vec<u8>>) -> bool);
     }
 
     #[test]
@@ -415,10 +475,9 @@ mod tests {
             nums.af_sort_unstable();
             nums == copy
         }
-        QuickCheck::new().tests(50000).quickcheck(
-            compare_sort as
-                fn(Vec<u8>) -> bool,
-        );
+        QuickCheck::new()
+            .tests(50000)
+            .quickcheck(compare_sort as fn(Vec<u8>) -> bool);
     }
 
     #[test]
@@ -431,10 +490,7 @@ mod tests {
         }
         QuickCheck::new()
             .tests(50000)
-            .quickcheck(
-            compare_sort as
-                fn(Vec<u16>) -> bool,
-        );
+            .quickcheck(compare_sort as fn(Vec<u16>) -> bool);
     }
 
     #[test]
@@ -446,10 +502,8 @@ mod tests {
             nums == copy
         }
         QuickCheck::new()
-            .tests(50000).quickcheck(
-            compare_sort as
-                fn(Vec<u32>) -> bool,
-        );
+            .tests(50000)
+            .quickcheck(compare_sort as fn(Vec<u32>) -> bool);
     }
 
     #[test]
@@ -460,11 +514,9 @@ mod tests {
             nums.af_sort_unstable();
             nums == copy
         }
-        QuickCheck::new().tests(50000)
-            .quickcheck(
-            compare_sort as
-                fn(Vec<u64>) -> bool,
-        );
+        QuickCheck::new()
+            .tests(50000)
+            .quickcheck(compare_sort as fn(Vec<u64>) -> bool);
     }
 
     #[test]
@@ -473,35 +525,33 @@ mod tests {
             let mut copy = tuples.clone();
             copy.sort_unstable_by(|t1, t2| t1.0.cmp(&t2.0));
             super::sort_unstable_by(&mut tuples, |t| &t.0);
-            tuples.into_iter().map(|t| t.0).collect::<Vec<String>>() ==
-                copy.into_iter().map(|t| t.0).collect::<Vec<String>>()
+            tuples.into_iter().map(|t| t.0).collect::<Vec<String>>()
+                == copy.into_iter().map(|t| t.0).collect::<Vec<String>>()
         }
-        QuickCheck::new().tests(50000).quickcheck(
-            compare_sort as
-                fn(Vec<(String, u8)>)
-                   -> bool,
-        );
+        QuickCheck::new()
+            .tests(50000)
+            .quickcheck(compare_sort as fn(Vec<(String, u8)>) -> bool);
     }
 
     #[test]
-    fn correct_radix_for_u8(){
+    fn correct_radix_for_u8() {
         let num = 0x50u8;
         assert_eq!(Some(num), num.get_digit_at(0));
         assert_eq!(None, num.get_digit_at(1));
         assert_eq!(None, num.get_digit_at(5));
     }
-    
+
     #[test]
-    fn correct_radix_for_u16(){
+    fn correct_radix_for_u16() {
         let num = 0x3050u16;
         assert_eq!(Some(0x30), num.get_digit_at(0));
         assert_eq!(Some(0x50), num.get_digit_at(1));
         assert_eq!(None, num.get_digit_at(2));
         assert_eq!(None, num.get_digit_at(5));
     }
-    
+
     #[test]
-    fn correct_radix_for_u32(){
+    fn correct_radix_for_u32() {
         let num = 0x70103050u32;
         assert_eq!(Some(0x70), num.get_digit_at(0));
         assert_eq!(Some(0x10), num.get_digit_at(1));
@@ -510,9 +560,9 @@ mod tests {
         assert_eq!(None, num.get_digit_at(4));
         assert_eq!(None, num.get_digit_at(7));
     }
-    
+
     #[test]
-    fn correct_radix_for_u64(){
+    fn correct_radix_for_u64() {
         let num = 0x2040608070103050u64;
         assert_eq!(Some(0x20), num.get_digit_at(0));
         assert_eq!(Some(0x40), num.get_digit_at(1));
