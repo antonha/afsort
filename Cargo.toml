@@ -1,6 +1,6 @@
 [package]
 name = "afsort"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Anton Hägerstrand <anton.hagerstrand@gmail.com>"]
 exclude = [
     "test_resources/*"
