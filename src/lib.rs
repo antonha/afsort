@@ -320,7 +320,7 @@ fn ident<T>(t: &T) -> &T {
 #[inline]
 pub fn sort_unstable_by<T, O, S>(vec: &mut [T], sort_by: S)
 where
-    O: Ord + DigitAt,
+    O: Ord + DigitAt + ?Sized,
     S: Fn(&T) -> &O,
 {
     sort_req(vec, &sort_by, 0);
@@ -328,7 +328,7 @@ where
 
 fn sort_req<T, O, S>(vec: &mut [T], sort_by: &S, depth: usize)
 where
-    O: Ord + DigitAt,
+    O: Ord + DigitAt + ?Sized,
     S: Fn(&T) -> &O,
 {
     if vec.len() <= 32 {
