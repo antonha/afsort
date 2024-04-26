@@ -321,16 +321,21 @@ where
     O: Ord + DigitAt + ?Sized,
     S: Fn(&T) -> &O,
 {
-    sort_req(vec, &sort_by, 0);
+    sort_req(
+        vec,
+        &|item, digit| sort_by(item).get_digit_at(digit),
+        &|remaining| remaining.sort_unstable_by(|e1, e2| sort_by(e1).cmp(sort_by(e2))),
+        0,
+    );
 }
 
-fn sort_req<T, O, S>(vec: &mut [T], sort_by: &S, depth: usize)
+fn sort_req<T, S, C>(vec: &mut [T], by_digit: &S, sort_remaining: &C, depth: usize)
 where
-    O: Ord + DigitAt + ?Sized,
-    S: Fn(&T) -> &O,
+    S: Fn(&T, usize) -> Option<u8>,
+    C: Fn(&mut [T]),
 {
     if vec.len() <= 32 {
-        vec.sort_unstable_by(|e1, e2| sort_by(e1).cmp(sort_by(e2)));
+        sort_remaining(vec);
         return;
     }
     let mut min = u16::max_value();
@@ -338,7 +343,7 @@ where
     {
         //Find min/max to be able to allocate less memory
         for elem in vec.iter() {
-            if let Some(v) = sort_by(elem).get_digit_at(depth) {
+            if let Some(v) = by_digit(elem, depth) {
                 let radix_val = v as u16;
                 if radix_val < min {
                     min = radix_val;
@@ -361,7 +366,7 @@ where
         //Count occurences per value. Elements without a value gets
         //the special value 0, while others get the u8 value +1.
         for elem in vec.iter() {
-            let radix_val = match sort_by(elem).get_digit_at(depth) {
+            let radix_val = match by_digit(elem, depth) {
                 Some(r) => r as u16 + 1 - min,
                 None => 0,
             };
@@ -387,7 +392,7 @@ where
             if i >= offsets[block + 1] as usize {
                 block += 1;
             } else {
-                let radix_val = match sort_by(&vec[i]).get_digit_at(depth) {
+                let radix_val = match by_digit(&vec[i], depth) {
                     Some(r) => r as u16 + 1 - min,
                     None => 0,
                 };
@@ -404,9 +409,19 @@ where
         //Within each bucket, sort recursively. We can skip the first, since all elements
         //in it have no radix at this depth, and thus are equal.
         for i in 1..offsets.len() - 1 {
-            sort_req(&mut vec[offsets[i]..offsets[i + 1]], sort_by, depth + 1);
+            sort_req(
+                &mut vec[offsets[i]..offsets[i + 1]],
+                by_digit,
+                sort_remaining,
+                depth + 1,
+            );
         }
-        sort_req(&mut vec[offsets[offsets.len() - 1]..], sort_by, depth + 1);
+        sort_req(
+            &mut vec[offsets[offsets.len() - 1]..],
+            by_digit,
+            sort_remaining,
+            depth + 1,
+        );
     }
 }
 
