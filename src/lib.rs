@@ -329,6 +329,17 @@ where
     );
 }
 
+/// Like [sort_unstable_by] except it can be used to sort an arbitrary slice without needing to conform to DigitAt
+/// and using whatever additional sorting algorithm you'd like (e.g. glidesort).
+#[inline]
+pub fn sort_unstable_by_digit<T, S, C>(vec: &mut [T], by_digit: S, sort_remaining: C)
+where
+    S: Fn(&T, usize) -> Option<u8>,
+    C: Fn(&mut [T]),
+{
+    sort_req(vec, &by_digit, &sort_remaining, 0);
+}
+
 fn sort_req<T, S, C>(vec: &mut [T], by_digit: &S, sort_remaining: &C, depth: usize)
 where
     S: Fn(&T, usize) -> Option<u8>,
