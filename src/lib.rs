@@ -154,7 +154,6 @@ pub trait DigitAt {
     /// assert_eq!(Some(2), num.get_digit_at(1));
     /// assert_eq!(None, num.get_digit_at(2));
     /// ```
-    #[inline]
     fn get_digit_at(&self, digit: usize) -> Option<u8>;
 }
 
@@ -221,7 +220,7 @@ impl<'a> DigitAt for &'a str {
     }
 }
 
-impl<'a> DigitAt for String {
+impl DigitAt for String {
     #[inline]
     fn get_digit_at(&self, digit: usize) -> Option<u8> {
         if self.len() > digit {
@@ -232,7 +231,7 @@ impl<'a> DigitAt for String {
     }
 }
 
-impl<'a> DigitAt for [u8] {
+impl DigitAt for [u8] {
     #[inline]
     fn get_digit_at(&self, digit: usize) -> Option<u8> {
         if self.len() > digit {
@@ -265,7 +264,7 @@ impl<'a> DigitAt for Cow<'a, str> {
     }
 }
 
-impl<'a> DigitAt for AsRef<DigitAt> {
+impl<T: AsRef<dyn DigitAt>> DigitAt for T {
     #[inline]
     fn get_digit_at(&self, digit: usize) -> Option<u8> {
         self.as_ref().get_digit_at(digit)
@@ -285,7 +284,6 @@ impl<'a> DigitAt for AsRef<DigitAt> {
 /// ```
 
 pub trait AFSortable {
-    #[inline]
     fn af_sort_unstable(&mut self);
 }
 
@@ -301,7 +299,7 @@ where
 
 #[inline]
 fn ident<T>(t: &T) -> &T {
-    &t
+    t
 }
 
 /// Sort method which accepts function to convert elements to &[u8].
@@ -323,16 +321,32 @@ where
     O: Ord + DigitAt + ?Sized,
     S: Fn(&T) -> &O,
 {
-    sort_req(vec, &sort_by, 0);
+    sort_req(
+        vec,
+        &|item, digit| sort_by(item).get_digit_at(digit),
+        &|remaining| remaining.sort_unstable_by(|e1, e2| sort_by(e1).cmp(sort_by(e2))),
+        0,
+    );
 }
 
-fn sort_req<T, O, S>(vec: &mut [T], sort_by: &S, depth: usize)
+/// Like [sort_unstable_by] except it can be used to sort an arbitrary slice without needing to conform to DigitAt
+/// and using whatever additional sorting algorithm you'd like (e.g. glidesort).
+#[inline]
+pub fn sort_unstable_by_digit<T, S, C>(vec: &mut [T], by_digit: S, sort_remaining: C)
 where
-    O: Ord + DigitAt + ?Sized,
-    S: Fn(&T) -> &O,
+    S: Fn(&T, usize) -> Option<u8>,
+    C: Fn(&mut [T]),
+{
+    sort_req(vec, &by_digit, &sort_remaining, 0);
+}
+
+fn sort_req<T, S, C>(vec: &mut [T], by_digit: &S, sort_remaining: &C, depth: usize)
+where
+    S: Fn(&T, usize) -> Option<u8>,
+    C: Fn(&mut [T]),
 {
     if vec.len() <= 32 {
-        vec.sort_unstable_by(|e1, e2| sort_by(e1).cmp(sort_by(e2)));
+        sort_remaining(vec);
         return;
     }
     let mut min = u16::max_value();
@@ -340,17 +354,14 @@ where
     {
         //Find min/max to be able to allocate less memory
         for elem in vec.iter() {
-            match sort_by(elem).get_digit_at(depth) {
-                Some(v) => {
-                    let radix_val = v as u16;
-                    if radix_val < min {
-                        min = radix_val;
-                    }
-                    if radix_val > max {
-                        max = radix_val;
-                    }
+            if let Some(v) = by_digit(elem, depth) {
+                let radix_val = v as u16;
+                if radix_val < min {
+                    min = radix_val;
                 }
-                None => (),
+                if radix_val > max {
+                    max = radix_val;
+                }
             }
         }
     }
@@ -361,12 +372,12 @@ where
 
     // +2 instead of +1 for special 0 bucket
     let num_items = (max - min + 2) as usize;
-    let mut counts: Vec<usize> = vec![0usize; num_items as usize];
+    let mut counts: Vec<usize> = vec![0usize; num_items];
     {
         //Count occurences per value. Elements without a value gets
         //the special value 0, while others get the u8 value +1.
         for elem in vec.iter() {
-            let radix_val = match sort_by(elem).get_digit_at(depth) {
+            let radix_val = match by_digit(elem, depth) {
                 Some(r) => r as u16 + 1 - min,
                 None => 0,
             };
@@ -374,13 +385,13 @@ where
         }
     }
 
-    let mut offsets: Vec<usize> = vec![0usize; num_items as usize];
+    let mut offsets: Vec<usize> = vec![0usize; num_items];
     {
         //Sets the offsets for each count
         let mut sum = 0usize;
         for i in 0..counts.len() {
-            offsets[i as usize] = sum;
-            sum += counts[i as usize];
+            offsets[i] = sum;
+            sum += counts[i];
         }
     }
     {
@@ -389,17 +400,17 @@ where
         let mut block = 0usize;
         let mut i = 0usize;
         while block < counts.len() - 1 {
-            if i >= offsets[block as usize + 1] as usize {
+            if i >= offsets[block + 1] as usize {
                 block += 1;
             } else {
-                let radix_val = match sort_by(&vec[i]).get_digit_at(depth) {
+                let radix_val = match by_digit(&vec[i], depth) {
                     Some(r) => r as u16 + 1 - min,
                     None => 0,
                 };
                 if radix_val == block as u16 {
                     i += 1;
                 } else {
-                    vec.swap(i as usize, next_free[radix_val as usize] as usize);
+                    vec.swap(i, next_free[radix_val as usize] as usize);
                     next_free[radix_val as usize] += 1;
                 }
             }
@@ -410,12 +421,18 @@ where
         //in it have no radix at this depth, and thus are equal.
         for i in 1..offsets.len() - 1 {
             sort_req(
-                &mut vec[offsets[i as usize] as usize..offsets[i as usize + 1] as usize],
-                sort_by,
+                &mut vec[offsets[i]..offsets[i + 1]],
+                by_digit,
+                sort_remaining,
                 depth + 1,
             );
         }
-        sort_req(&mut vec[offsets[offsets.len() - 1]..], sort_by, depth + 1);
+        sort_req(
+            &mut vec[offsets[offsets.len() - 1]..],
+            by_digit,
+            sort_remaining,
+            depth + 1,
+        );
     }
 }
 
@@ -442,7 +459,7 @@ mod tests {
     #[test]
     fn sorts_cow_str_same_as_unstable() {
         fn compare_sort(strings: Vec<String>) -> bool {
-            let mut cows: Vec<Cow<str>> = strings.into_iter().map(|s| Cow::Owned(s)).collect();
+            let mut cows: Vec<Cow<str>> = strings.into_iter().map(Cow::Owned).collect();
             let mut copy = cows.clone();
             copy.sort_unstable();
             cows.af_sort_unstable();
